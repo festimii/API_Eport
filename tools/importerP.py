@@ -212,7 +212,7 @@ class PlanogramImporter:
 
 
 if __name__ == "__main__":
-    EXCEL_PATH = r"C:\Users\Administrator\Desktop\PLANOGRAMET.xlsx"
+    EXCEL_PATH = r"C:\Users\Administrator\Desktop\PLANOGRAMET_1.xlsx"
     CONNECTION = (
         "DRIVER={SQL Server};"
         "SERVER=192.168.100.10;"
