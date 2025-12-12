@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -19,17 +19,9 @@ def _normalize_value(value: Any) -> Any:
     return value
 
 
-def _format_date(date_value: date | datetime | str | None) -> str:
-    if isinstance(date_value, (date, datetime)):
-        return date_value.strftime("%Y-%m-%d")
-    if date_value is None:
-        return datetime.today().strftime("%Y-%m-%d")
-    return str(date_value)
-
-
-def fetch_daily_stock(date_value: date | datetime | str | None = None) -> list[dict[str, Any]]:
+def fetch_daily_stock(date_str: str | None = None) -> list[dict[str, Any]]:
     """Execute Festim_Stock_Export for a date (defaults to today) and return rows."""
-    target_date = _format_date(date_value)
+    target_date = date_str or datetime.today().strftime("%Y-%m-%d")
 
     conn = get_conn()
     cursor = conn.cursor()

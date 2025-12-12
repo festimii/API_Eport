@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 
@@ -13,11 +13,12 @@ router = APIRouter(
 
 
 @router.get("/daily")
-def daily_stock(day: date | None = Query(
+def daily_stock(date: str | None = Query(
     default=None,
     description="Date for the stock export in YYYY-MM-DD format. Defaults to today."
 )):
     """Return the Festim_Stock_Export result for the provided date or today's date."""
-    target_date = day or datetime.today().date()
+    if date is None:
+        date = datetime.today().strftime("%Y-%m-%d")
 
-    return fetch_daily_stock(target_date)
+    return fetch_daily_stock(date)
