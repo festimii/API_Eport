@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from routers.auth_router import router as auth_router
 from routers.export_router import router as export_router
 from routers.items_router import router as items_router
+from routers.stock_router import router as stock_router
 
 app = FastAPI(
     title="ItemMaster API",
@@ -11,6 +12,7 @@ app = FastAPI(
 app.include_router(auth_router)
 app.include_router(items_router)
 app.include_router(export_router)
+app.include_router(stock_router)
 
 
 @app.get("/")
