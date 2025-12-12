@@ -1,11 +1,16 @@
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
 from services.export_service import (
     run_sync_procedure,
     fetch_items,
     generate_csv,
 )
+from .auth_router import require_token
 
-router = APIRouter(prefix="/export", tags=["Export"])
+router = APIRouter(
+    prefix="/export",
+    tags=["Export"],
+    dependencies=[Depends(require_token)],
+)
 
 
 @router.get("/sync")

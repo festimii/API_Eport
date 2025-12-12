@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from services.items_service import (
     sync_items,
@@ -8,8 +8,13 @@ from services.items_service import (
     get_item_by_id,
     stream_all_items
 )
+from .auth_router import require_token
 
-router = APIRouter(prefix="/items", tags=["Items API"])
+router = APIRouter(
+    prefix="/items",
+    tags=["Items API"],
+    dependencies=[Depends(require_token)],
+)
 
 
 # ----------------------------------------------------------
