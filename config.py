@@ -25,6 +25,18 @@ API_PASSWORD: Final[str] = _require_env("API_PASSWORD")
 API_SECRET_KEY: Final[str] = _require_env("API_SECRET_KEY")
 API_TOKEN_EXPIRE_MINUTES: Final[int] = int(os.getenv("API_TOKEN_EXPIRE_MINUTES", "60"))
 
+ALLOWED_IPS: Final[set[str]] = {
+    "34.165.250.146",
+    "34.165.194.156",
+    "31.154.21.146",
+    "62.90.169.6",
+    "localhost",
+    "127.0.0.1",
+    "::1",
+}
+
+ALLOWED_IP_PREFIXES: Final[tuple[str, ...]] = ("192.168.",)
+
 CONNECTION_STRING: Final[str] = (
     f"DRIVER={{SQL Server}};"
     f"SERVER={DB_SERVER};"
