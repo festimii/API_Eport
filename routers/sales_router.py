@@ -1,10 +1,9 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from services.sales_service import (
-    fetch_new_sales,
     mark_sale_delivered,
     mark_sale_failed,
     push_sales,
@@ -36,12 +35,6 @@ class SalesFailureRequest(BaseModel):
 def push_sales_outbox(payload: SalesPushRequest):
     """Populate the sales outbox for a branch and date range."""
     return push_sales(payload.branch, payload.from_date.isoformat(), payload.to_date.isoformat())
-
-
-@router.get("/outbox")
-def read_sales_outbox(limit: int | None = Query(default=None, description="Maximum rows to return")):
-    """Return NEW sales from the outbox and mark them as fetched."""
-    return fetch_new_sales(limit)
 
 
 @router.post("/{sale_uid}/delivered")
