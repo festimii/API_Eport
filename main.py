@@ -7,6 +7,7 @@ from routers.export_router import router as export_router
 from routers.items_router import router as items_router
 from routers.sales_router import router as sales_router
 from routers.stock_router import router as stock_router
+from services.sales_service import start_sales_outbox_scheduler, stop_sales_outbox_scheduler
 
 app = FastAPI(
     title="ItemMaster API",
@@ -18,6 +19,16 @@ app.include_router(items_router)
 app.include_router(export_router)
 app.include_router(sales_router)
 app.include_router(stock_router)
+
+
+@app.on_event("startup")
+def start_schedulers():
+    start_sales_outbox_scheduler()
+
+
+@app.on_event("shutdown")
+def stop_schedulers():
+    stop_sales_outbox_scheduler()
 
 
 @app.middleware("http")
