@@ -1,6 +1,7 @@
-from typing import Any
+from datetime import datetime
+from decimal import Decimal
 from threading import Event, Thread
-import time
+from typing import Any
 import logging
 
 from db import get_conn
@@ -70,6 +71,35 @@ def stop_sales_outbox_scheduler() -> None:
 
 
 # =========================
+# Serialization helpers
+# =========================
+
+def _json_safe(value: Any) -> Any:
+    """
+    Normalize values so the response is API friendly.
+    """
+
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, bytes):
+        return value.decode(errors="ignore")
+    return value
+
+
+def _parse_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
+
+
+# =========================
 # Existing DB operations
 # =========================
 
@@ -86,6 +116,110 @@ def push_sales() -> dict[str, Any]:
     conn.close()
 
     return {"status": "OK", "rows_affected": rows_affected}
+
+
+def list_sales(
+    status: str | None = None,
+    since: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """
+    Return a paginated view of the sales outbox with optional filtering.
+
+    The function keeps the SQL simple (select *), but the result is normalized
+    so it remains predictable for API-to-API communication even if the
+    underlying schema evolves.
+    """
+
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM dbo.SalesOutbox;")
+    columns = [col[0] for col in cursor.description]
+    rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    cursor.close()
+    conn.close()
+
+    status_field = None
+    timestamp_field = None
+
+    if rows:
+        for candidate in (
+            "DeliveryStatus",
+            "Status",
+            "StatusFlag",
+            "Flag",
+            "State",
+        ):
+            if candidate in rows[0]:
+                status_field = candidate
+                break
+
+        for candidate in (
+            "UpdatedAt",
+            "Updated_On",
+            "ModifiedDate",
+            "Modified",
+            "CreatedAt",
+        ):
+            if candidate in rows[0]:
+                timestamp_field = candidate
+                break
+
+    # Filter in Python to avoid coupling to optional database columns
+    if status and status_field:
+        rows = [
+            row
+            for row in rows
+            if str(row.get(status_field) or "").lower() == status.lower()
+        ]
+
+    if since:
+        if not timestamp_field:
+            raise ValueError("Timestamp field not found; cannot filter by 'since'")
+
+        try:
+            since_dt = datetime.fromisoformat(since)
+        except ValueError as exc:
+            raise ValueError("since must be an ISO 8601 date/time string") from exc
+
+        filtered_rows = []
+        for row in rows:
+            candidate_ts = _parse_datetime(row.get(timestamp_field))
+            if candidate_ts and candidate_ts >= since_dt:
+                filtered_rows.append(row)
+        rows = filtered_rows
+
+    total_count = len(rows)
+    paginated_rows = rows[offset : offset + limit]
+
+    safe_rows = [
+        {key: _json_safe(value) for key, value in row.items()}
+        for row in paginated_rows
+    ]
+
+    status_counts: dict[str, int] | None = None
+    if status_field:
+        status_counts = {}
+        for row in rows:
+            key = str(row.get(status_field) or "").lower() or "unknown"
+            status_counts[key] = status_counts.get(key, 0) + 1
+
+    return {
+        "status": "OK",
+        "metadata": {
+            "limit": limit,
+            "offset": offset,
+            "returned": len(safe_rows),
+            "total": total_count,
+            "status_field": status_field,
+            "timestamp_field": timestamp_field,
+            "status_counts": status_counts,
+        },
+        "data": safe_rows,
+    }
 
 
 def mark_sale_delivered(sale_uid: str, ack_id: str | None) -> dict[str, Any]:
