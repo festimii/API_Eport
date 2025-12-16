@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
@@ -17,12 +15,6 @@ router = APIRouter(
 )
 
 
-class SalesPushRequest(BaseModel):
-    branch: int = Field(..., description="Branch identifier")
-    from_date: datetime = Field(..., description="Inclusive start datetime (UTC)")
-    to_date: datetime = Field(..., description="Exclusive end datetime (UTC)")
-
-
 class SalesDeliveryRequest(BaseModel):
     ack_id: str | None = Field(None, description="Acknowledgement identifier from upstream")
 
@@ -32,9 +24,9 @@ class SalesFailureRequest(BaseModel):
 
 
 @router.post("/push")
-def push_sales_outbox(payload: SalesPushRequest):
-    """Populate the sales outbox for a branch and date range."""
-    return push_sales(payload.branch, payload.from_date.isoformat(), payload.to_date.isoformat())
+def push_sales_outbox():
+    """Populate today's sales outbox using the Api_Push_Sales procedure."""
+    return push_sales()
 
 
 @router.post("/{sale_uid}/delivered")

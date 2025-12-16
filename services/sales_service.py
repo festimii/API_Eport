@@ -1,30 +1,15 @@
-from datetime import datetime
 from typing import Any
 
 from db import get_conn
 
 
-ISO_FORMAT = "%Y-%m-%dT%H:%M:%S"
-
-
-def _parse_datetime(value: str) -> datetime:
-    """Parse an ISO-like datetime string into a datetime object."""
-    # Accept both full ISO strings and date-only strings by normalizing input
-    try:
-        return datetime.fromisoformat(value)
-    except ValueError:
-        return datetime.strptime(value, ISO_FORMAT)
-
-
-def push_sales(branch: int, from_date: str, to_date: str) -> dict[str, Any]:
-    """Execute Api_Push_Sales to populate the outbox for a branch and date range."""
-    from_dt = _parse_datetime(from_date)
-    to_dt = _parse_datetime(to_date)
+def push_sales() -> dict[str, Any]:
+    """Execute Api_Push_Sales to populate today's sales outbox entries."""
 
     conn = get_conn()
     cursor = conn.cursor()
 
-    cursor.execute("EXEC dbo.Api_Push_Sales @Branch = ?, @FromDate = ?, @ToDate = ?", branch, from_dt, to_dt)
+    cursor.execute("EXEC dbo.Api_Push_Sales")
     conn.commit()
 
     # Return number of rows inserted for visibility
