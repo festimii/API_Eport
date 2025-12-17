@@ -29,13 +29,13 @@ class SalesDeliveryRequest(BaseModel):
             " delivered."
         ),
     )
-    bill_ids: list[str] | None = Field(
-        default=None,
-        description=(
-            "Optional collection of bill identifiers to mark as delivered. If provided,"
-            " any sale matching the supplied bill identifiers will be marked"
-            " delivered."
-        ),
+
+
+class BillsDeliveryRequest(BaseModel):
+    bill_ids: list[str] = Field(
+        ...,
+        min_items=1,
+        description="Collection of bill identifiers to mark as delivered.",
     )
     
 
@@ -129,6 +129,18 @@ def mark_bill_as_delivered(bill_id: str, payload: SalesDeliveryRequest):
 
     try:
         return mark_bill_delivered(bill_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/bills/delivered")
+def mark_bills_as_delivered(payload: BillsDeliveryRequest):
+    """
+    Mark all sales linked to the provided bill identifiers as delivered.
+    """
+
+    try:
+        return mark_bills_delivered(payload.bill_ids)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
