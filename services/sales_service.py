@@ -388,14 +388,13 @@ def list_sales_grouped_by_bill(
     }
 
 
-def mark_sale_delivered(sale_uid: str, ack_id: str | None) -> dict[str, Any]:
+def mark_sale_delivered(sale_uid: str) -> dict[str, Any]:
     conn = get_conn()
     cursor = conn.cursor()
 
     cursor.execute(
-        "EXEC dbo.Api_Mark_Sale_Delivered @Sale_UID = ?, @Ack_Id = ?",
+        "EXEC dbo.Api_Mark_Sale_Delivered @Sale_UID = ?",
         sale_uid,
-        ack_id,
     )
     conn.commit()
 
@@ -407,7 +406,7 @@ def mark_sale_delivered(sale_uid: str, ack_id: str | None) -> dict[str, Any]:
     return {"status": "OK", "rows_affected": rows_affected}
 
 
-def mark_bill_delivered(bill_id: str, ack_id: str | None) -> dict[str, Any]:
+def mark_bill_delivered(bill_id: str) -> dict[str, Any]:
     rows = _fetch_sales_rows()
 
     if not rows:
@@ -436,9 +435,8 @@ def mark_bill_delivered(bill_id: str, ack_id: str | None) -> dict[str, Any]:
     rows_affected = 0
     for sale_uid in matching_sales:
         cursor.execute(
-            "EXEC dbo.Api_Mark_Sale_Delivered @Sale_UID = ?, @Ack_Id = ?",
+            "EXEC dbo.Api_Mark_Sale_Delivered @Sale_UID = ?",
             sale_uid,
-            ack_id,
         )
         rows_affected += cursor.rowcount
 
@@ -454,7 +452,7 @@ def mark_bill_delivered(bill_id: str, ack_id: str | None) -> dict[str, Any]:
     }
 
 
-def mark_bills_delivered(bill_ids: list[str], ack_id: str | None) -> dict[str, Any]:
+def mark_bills_delivered(bill_ids: list[str]) -> dict[str, Any]:
     rows = _fetch_sales_rows()
 
     if not rows:
@@ -496,9 +494,8 @@ def mark_bills_delivered(bill_ids: list[str], ack_id: str | None) -> dict[str, A
         bill_rows_affected = 0
         for sale_uid in sale_ids:
             cursor.execute(
-                "EXEC dbo.Api_Mark_Sale_Delivered @Sale_UID = ?, @Ack_Id = ?",
+                "EXEC dbo.Api_Mark_Sale_Delivered @Sale_UID = ?",
                 sale_uid,
-                ack_id,
             )
             bill_rows_affected += cursor.rowcount
         total_rows_affected += bill_rows_affected

@@ -21,9 +21,13 @@ router = APIRouter(
 
 
 class SalesDeliveryRequest(BaseModel):
-    ack_id: str | None = Field(
-        None,
-        description="Acknowledgement identifier from upstream system",
+    bill_ids: list[str] | None = Field(
+        default=None,
+        description=(
+            "Optional collection of bill identifiers to mark as delivered. If provided,"
+            " any sale matching the supplied bill identifiers will be marked"
+            " delivered."
+        ),
     )
     bill_ids: list[str] | None = Field(
         default=None,
@@ -112,9 +116,9 @@ def mark_delivered(sale_uid: str, payload: SalesDeliveryRequest):
     """
 
     if payload.bill_ids:
-        return mark_bills_delivered(payload.bill_ids, payload.ack_id)
+        return mark_bills_delivered(payload.bill_ids)
 
-    return mark_sale_delivered(sale_uid, payload.ack_id)
+    return mark_sale_delivered(sale_uid)
 
 
 @router.post("/bill/{bill_id}/delivered")
@@ -124,7 +128,7 @@ def mark_bill_as_delivered(bill_id: str, payload: SalesDeliveryRequest):
     """
 
     try:
-        return mark_bill_delivered(bill_id, payload.ack_id)
+        return mark_bill_delivered(bill_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
