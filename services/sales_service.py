@@ -8,6 +8,43 @@ from db import get_conn
 
 logger = logging.getLogger(__name__)
 
+STATUS_FIELD_CANDIDATES = (
+    "DeliveryStatus",
+    "Status",
+    "StatusFlag",
+    "Flag",
+    "State",
+)
+
+TIMESTAMP_FIELD_CANDIDATES = (
+    "UpdatedAt",
+    "Updated_On",
+    "ModifiedDate",
+    "Modified",
+    "CreatedAt",
+)
+
+BILL_ID_FIELD_CANDIDATES = (
+    "BillId",
+    "Bill_ID",
+    "BillID",
+    "Bill_No",
+    "BillNo",
+    "BillNumber",
+    "InvoiceId",
+    "Invoice_ID",
+    "InvoiceNo",
+)
+
+SALE_UID_FIELD_CANDIDATES = (
+    "Sale_UID",
+    "SaleUID",
+    "SaleId",
+    "Sale_ID",
+    "UID",
+    "Id",
+)
+
 # =========================
 # Scheduler internals
 # =========================
@@ -103,6 +140,28 @@ def _parse_datetime(value: Any) -> datetime | None:
 # Existing DB operations
 # =========================
 
+
+def _detect_field(row: dict[str, Any], candidates: tuple[str, ...]) -> str | None:
+    for candidate in candidates:
+        if candidate in row:
+            return candidate
+    return None
+
+
+def _fetch_sales_rows() -> list[dict[str, Any]]:
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM dbo.Api_Sales_Outbox;")
+    columns = [col[0] for col in cursor.description]
+    rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    cursor.close()
+    conn.close()
+
+    return rows
+
+
 def push_sales() -> dict[str, Any]:
     conn = get_conn()
     cursor = conn.cursor()
@@ -132,41 +191,14 @@ def list_sales(
     underlying schema evolves.
     """
 
-    conn = get_conn()
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT * FROM dbo.Api_Sales_Outbox;")
-    columns = [col[0] for col in cursor.description]
-    rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
-
-    cursor.close()
-    conn.close()
+    rows = _fetch_sales_rows()
 
     status_field = None
     timestamp_field = None
 
     if rows:
-        for candidate in (
-            "DeliveryStatus",
-            "Status",
-            "StatusFlag",
-            "Flag",
-            "State",
-        ):
-            if candidate in rows[0]:
-                status_field = candidate
-                break
-
-        for candidate in (
-            "UpdatedAt",
-            "Updated_On",
-            "ModifiedDate",
-            "Modified",
-            "CreatedAt",
-        ):
-            if candidate in rows[0]:
-                timestamp_field = candidate
-                break
+        status_field = _detect_field(rows[0], STATUS_FIELD_CANDIDATES)
+        timestamp_field = _detect_field(rows[0], TIMESTAMP_FIELD_CANDIDATES)
 
     # Filter in Python to avoid coupling to optional database columns
     if status and status_field:
@@ -222,6 +254,96 @@ def list_sales(
     }
 
 
+def list_sales_grouped_by_bill(
+    status: str | None = None,
+    since: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict[str, Any]:
+    rows = _fetch_sales_rows()
+
+    if not rows:
+        return {
+            "status": "OK",
+            "metadata": {
+                "limit": limit,
+                "offset": offset,
+                "returned": 0,
+                "total": 0,
+                "bill_id_field": None,
+                "status_field": None,
+                "timestamp_field": None,
+            },
+            "data": [],
+        }
+
+    status_field = _detect_field(rows[0], STATUS_FIELD_CANDIDATES)
+    timestamp_field = _detect_field(rows[0], TIMESTAMP_FIELD_CANDIDATES)
+    bill_id_field = _detect_field(rows[0], BILL_ID_FIELD_CANDIDATES)
+
+    if not bill_id_field:
+        raise ValueError("Bill identifier field not found in sales outbox")
+
+    if status and status_field:
+        rows = [
+            row
+            for row in rows
+            if str(row.get(status_field) or "").lower() == status.lower()
+        ]
+
+    if since:
+        if not timestamp_field:
+            raise ValueError("Timestamp field not found; cannot filter by 'since'")
+
+        try:
+            since_dt = datetime.fromisoformat(since)
+        except ValueError as exc:
+            raise ValueError("since must be an ISO 8601 date/time string") from exc
+
+        filtered_rows = []
+        for row in rows:
+            candidate_ts = _parse_datetime(row.get(timestamp_field))
+            if candidate_ts and candidate_ts >= since_dt:
+                filtered_rows.append(row)
+        rows = filtered_rows
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        bill_key = str(row.get(bill_id_field) or "")
+        grouped.setdefault(bill_key, []).append(row)
+
+    group_items = []
+    for bill_key, group_rows in sorted(grouped.items()):
+        safe_group_rows = [
+            {key: _json_safe(value) for key, value in row.items()}
+            for row in group_rows
+        ]
+        group_items.append(
+            {
+                "bill_id": bill_key,
+                "count": len(group_rows),
+                "sales": safe_group_rows,
+            }
+        )
+
+    total_groups = len(group_items)
+    paginated_groups = group_items[offset : offset + limit]
+
+    return {
+        "status": "OK",
+        "metadata": {
+            "limit": limit,
+            "offset": offset,
+            "returned": len(paginated_groups),
+            "total": total_groups,
+            "bill_id_field": bill_id_field,
+            "status_field": status_field,
+            "timestamp_field": timestamp_field,
+        },
+        "data": paginated_groups,
+    }
+
+
 def mark_sale_delivered(sale_uid: str, ack_id: str | None) -> dict[str, Any]:
     conn = get_conn()
     cursor = conn.cursor()
@@ -239,6 +361,53 @@ def mark_sale_delivered(sale_uid: str, ack_id: str | None) -> dict[str, Any]:
     conn.close()
 
     return {"status": "OK", "rows_affected": rows_affected}
+
+
+def mark_bill_delivered(bill_id: str, ack_id: str | None) -> dict[str, Any]:
+    rows = _fetch_sales_rows()
+
+    if not rows:
+        return {"status": "OK", "rows_affected": 0, "bill_id": bill_id}
+
+    bill_id_field = _detect_field(rows[0], BILL_ID_FIELD_CANDIDATES)
+    sale_uid_field = _detect_field(rows[0], SALE_UID_FIELD_CANDIDATES)
+
+    if not bill_id_field:
+        raise ValueError("Bill identifier field not found in sales outbox")
+    if not sale_uid_field:
+        raise ValueError("Sale UID field not found in sales outbox")
+
+    matching_sales = [
+        row[sale_uid_field]
+        for row in rows
+        if str(row.get(bill_id_field) or "") == bill_id and sale_uid_field in row
+    ]
+
+    if not matching_sales:
+        return {"status": "OK", "rows_affected": 0, "bill_id": bill_id}
+
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    rows_affected = 0
+    for sale_uid in matching_sales:
+        cursor.execute(
+            "EXEC dbo.Api_Mark_Sale_Delivered @Sale_UID = ?, @Ack_Id = ?",
+            sale_uid,
+            ack_id,
+        )
+        rows_affected += cursor.rowcount
+
+    conn.commit()
+
+    cursor.close()
+    conn.close()
+
+    return {
+        "status": "OK",
+        "rows_affected": rows_affected,
+        "bill_id": bill_id,
+    }
 
 
 def mark_sale_failed(sale_uid: str, reason: str | None) -> dict[str, Any]:
