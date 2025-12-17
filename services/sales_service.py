@@ -135,7 +135,7 @@ def list_sales(
     conn = get_conn()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM dbo.SalesOutbox;")
+    cursor.execute("SELECT * FROM dbo.Api_Sales_Outbox;")
     columns = [col[0] for col in cursor.description]
     rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
