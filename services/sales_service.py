@@ -211,6 +211,12 @@ def list_sales(
             for row in rows
             if str(row.get(status_field) or "").lower() == status.lower()
         ]
+    elif status_field:
+        rows = [
+            row
+            for row in rows
+            if str(row.get(status_field) or "").lower() != "delivered"
+        ]
 
     if since:
         if not timestamp_field:
@@ -322,6 +328,12 @@ def list_sales_grouped_by_bill(
             for row in rows
             if str(row.get(status_field) or "").lower() == status.lower()
         ]
+    elif status_field:
+        rows = [
+            row
+            for row in rows
+            if str(row.get(status_field) or "").lower() != "delivered"
+        ]
 
     if since:
         if not timestamp_field:
@@ -376,14 +388,13 @@ def list_sales_grouped_by_bill(
     }
 
 
-def mark_sale_delivered(sale_uid: str, ack_id: str | None) -> dict[str, Any]:
+def mark_sale_delivered(sale_uid: str) -> dict[str, Any]:
     conn = get_conn()
     cursor = conn.cursor()
 
     cursor.execute(
-        "EXEC dbo.Api_Mark_Sale_Delivered @Sale_UID = ?, @Ack_Id = ?",
+        "EXEC dbo.Api_Mark_Sale_Delivered @Sale_UID = ?",
         sale_uid,
-        ack_id,
     )
     conn.commit()
 
@@ -395,7 +406,7 @@ def mark_sale_delivered(sale_uid: str, ack_id: str | None) -> dict[str, Any]:
     return {"status": "OK", "rows_affected": rows_affected}
 
 
-def mark_bill_delivered(bill_id: str, ack_id: str | None) -> dict[str, Any]:
+def mark_bill_delivered(bill_id: str) -> dict[str, Any]:
     rows = _fetch_sales_rows()
 
     if not rows:
@@ -424,9 +435,8 @@ def mark_bill_delivered(bill_id: str, ack_id: str | None) -> dict[str, Any]:
     rows_affected = 0
     for sale_uid in matching_sales:
         cursor.execute(
-            "EXEC dbo.Api_Mark_Sale_Delivered @Sale_UID = ?, @Ack_Id = ?",
+            "EXEC dbo.Api_Mark_Sale_Delivered @Sale_UID = ?",
             sale_uid,
-            ack_id,
         )
         rows_affected += cursor.rowcount
 
@@ -439,6 +449,67 @@ def mark_bill_delivered(bill_id: str, ack_id: str | None) -> dict[str, Any]:
         "status": "OK",
         "rows_affected": rows_affected,
         "bill_id": bill_id,
+    }
+
+
+def mark_bills_delivered(bill_ids: list[str]) -> dict[str, Any]:
+    rows = _fetch_sales_rows()
+
+    if not rows:
+        return {
+            "status": "OK",
+            "rows_affected": 0,
+            "bill_summaries": [],
+        }
+
+    bill_id_field = _detect_field(rows[0], BILL_ID_FIELD_CANDIDATES)
+    sale_uid_field = _detect_field(rows[0], SALE_UID_FIELD_CANDIDATES)
+
+    if not bill_id_field:
+        raise ValueError("Bill identifier field not found in sales outbox")
+    if not sale_uid_field:
+        raise ValueError("Sale UID field not found in sales outbox")
+
+    normalized_bill_ids = {str(bill_id) for bill_id in bill_ids}
+
+    bills_to_sales: dict[str, list[str]] = {}
+    for row in rows:
+        bill_key = str(row.get(bill_id_field) or "")
+        if bill_key in normalized_bill_ids and sale_uid_field in row:
+            bills_to_sales.setdefault(bill_key, []).append(row[sale_uid_field])
+
+    if not bills_to_sales:
+        return {
+            "status": "OK",
+            "rows_affected": 0,
+            "bill_summaries": [],
+        }
+
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    total_rows_affected = 0
+    bill_summaries = []
+    for bill_key, sale_ids in bills_to_sales.items():
+        bill_rows_affected = 0
+        for sale_uid in sale_ids:
+            cursor.execute(
+                "EXEC dbo.Api_Mark_Sale_Delivered @Sale_UID = ?",
+                sale_uid,
+            )
+            bill_rows_affected += cursor.rowcount
+        total_rows_affected += bill_rows_affected
+        bill_summaries.append({"bill_id": bill_key, "rows_affected": bill_rows_affected})
+
+    conn.commit()
+
+    cursor.close()
+    conn.close()
+
+    return {
+        "status": "OK",
+        "rows_affected": total_rows_affected,
+        "bill_summaries": bill_summaries,
     }
 
 
