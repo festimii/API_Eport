@@ -6,6 +6,7 @@ from services.sales_service import (
     push_sales,
     mark_sale_delivered,
     mark_bill_delivered,
+    mark_bills_delivered,
     mark_sale_failed,
     list_sales,
     list_sales_grouped_by_bill,
@@ -20,9 +21,21 @@ router = APIRouter(
 
 
 class SalesDeliveryRequest(BaseModel):
-    ack_id: str | None = Field(
-        None,
-        description="Acknowledgement identifier from upstream system",
+    bill_ids: list[str] | None = Field(
+        default=None,
+        description=(
+            "Optional collection of bill identifiers to mark as delivered. If provided,"
+            " any sale matching the supplied bill identifiers will be marked"
+            " delivered."
+        ),
+    )
+
+
+class BillsDeliveryRequest(BaseModel):
+    bill_ids: list[str] = Field(
+        ...,
+        min_items=1,
+        description="Collection of bill identifiers to mark as delivered.",
     )
 
 
@@ -99,9 +112,13 @@ async def get_sales_grouped(
 @router.post("/{sale_uid}/delivered")
 def mark_delivered(sale_uid: str, payload: SalesDeliveryRequest):
     """
-    Mark a sale as delivered.
+    Mark a sale, or all sales matching provided bill identifiers, as delivered.
     """
-    return mark_sale_delivered(sale_uid, payload.ack_id)
+
+    if payload.bill_ids:
+        return mark_bills_delivered(payload.bill_ids)
+
+    return mark_sale_delivered(sale_uid)
 
 
 @router.post("/bill/{bill_id}/delivered")
@@ -111,7 +128,19 @@ def mark_bill_as_delivered(bill_id: str, payload: SalesDeliveryRequest):
     """
 
     try:
-        return mark_bill_delivered(bill_id, payload.ack_id)
+        return mark_bill_delivered(bill_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/bills/delivered")
+def mark_bills_as_delivered(payload: BillsDeliveryRequest):
+    """
+    Mark all sales linked to the provided bill identifiers as delivered.
+    """
+
+    try:
+        return mark_bills_delivered(payload.bill_ids)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
