@@ -29,6 +29,14 @@ class SalesDeliveryRequest(BaseModel):
             " delivered."
         ),
     )
+    bill_ids: list[str] | None = Field(
+        default=None,
+        description=(
+            "Optional collection of bill identifiers to mark as delivered. If provided,"
+            " any sale matching the supplied bill identifiers will be marked"
+            " delivered."
+        ),
+    )
 
 
 class SalesFailureRequest(BaseModel):
