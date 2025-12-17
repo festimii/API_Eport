@@ -388,147 +388,46 @@ def list_sales_grouped_by_bill(
     }
 
 
-def mark_sale_delivered(sale_uid: str) -> dict[str, Any]:
-    rows = _fetch_sales_rows()
-
-    bill_id_field = None
-    sale_uid_field = None
-    if rows:
-        bill_id_field = _detect_field(rows[0], BILL_ID_FIELD_CANDIDATES)
-        sale_uid_field = _detect_field(rows[0], SALE_UID_FIELD_CANDIDATES)
-
-    bill_uid = sale_uid
-    if bill_id_field and sale_uid_field:
-        for row in rows:
-            if str(row.get(sale_uid_field) or "") == sale_uid:
-                bill_uid = str(row.get(bill_id_field) or bill_uid)
-                break
-
-    conn = get_conn()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "EXEC dbo.Api_Mark_Sale_Delivered @Bill_UID = ?",
-        bill_uid,
-    )
-    conn.commit()
-
-    rows_affected = cursor.rowcount
-
-    cursor.close()
-    conn.close()
-
-    return {"status": "OK", "rows_affected": rows_affected, "bill_id": bill_uid}
-
-
-def mark_bill_delivered(bill_id: str) -> dict[str, Any]:
-    conn = get_conn()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "EXEC dbo.Api_Mark_Sale_Delivered @Bill_UID = ?",
-        bill_id,
-    )
-    conn.commit()
-
-    rows_affected = cursor.rowcount
-
-    cursor.close()
-    conn.close()
-
-    return {"status": "OK", "rows_affected": rows_affected, "bill_id": bill_id}
-
-
 def mark_bills_delivered(bill_ids: list[str]) -> dict[str, Any]:
+    """
+    Stage bill identifiers for delivery and trigger the bulk stored procedure.
+
+    This is the only supported delivery update path; individual sale updates
+    are intentionally removed in favor of bulk processing.
+    """
+
     if not bill_ids:
-        return {"status": "OK", "rows_affected": 0, "bill_summaries": []}
-
-    normalized_bill_ids = {str(bill_id) for bill_id in bill_ids}
-
-    conn = get_conn()
-    cursor = conn.cursor()
-
-    total_rows_affected = 0
-    bill_summaries = []
-    for bill_uid in sorted(normalized_bill_ids):
-        cursor.execute(
-            "EXEC dbo.Api_Mark_Sale_Delivered @Bill_UID = ?",
-            bill_uid,
-        )
-        bill_rows_affected = cursor.rowcount
-        total_rows_affected += bill_rows_affected
-        bill_summaries.append({"bill_id": bill_uid, "rows_affected": bill_rows_affected})
-
-    conn.commit()
-
-    cursor.close()
-    conn.close()
-
-    return {
-        "status": "OK",
-        "rows_affected": total_rows_affected,
-        "bill_summaries": bill_summaries,
-    }
-
-
-def mark_bills_delivered(bill_ids: list[str]) -> dict[str, Any]:
-    rows = _fetch_sales_rows()
-
-    if not rows:
         return {
             "status": "OK",
             "rows_affected": 0,
             "bill_summaries": [],
         }
 
-    bill_id_field = _detect_field(rows[0], BILL_ID_FIELD_CANDIDATES)
-    sale_uid_field = _detect_field(rows[0], SALE_UID_FIELD_CANDIDATES)
-
-    if not bill_id_field:
-        raise ValueError("Bill identifier field not found in sales outbox")
-    if not sale_uid_field:
-        raise ValueError("Sale UID field not found in sales outbox")
-
-    normalized_bill_ids = {str(bill_id) for bill_id in bill_ids}
-
-    bills_to_sales: dict[str, list[str]] = {}
-    for row in rows:
-        bill_key = str(row.get(bill_id_field) or "")
-        if bill_key in normalized_bill_ids and sale_uid_field in row:
-            bills_to_sales.setdefault(bill_key, []).append(row[sale_uid_field])
-
-    if not bills_to_sales:
-        return {
-            "status": "OK",
-            "rows_affected": 0,
-            "bill_summaries": [],
-        }
+    normalized_bill_ids = sorted({str(bill_id) for bill_id in bill_ids})
 
     conn = get_conn()
     cursor = conn.cursor()
 
-    total_rows_affected = 0
-    bill_summaries = []
-    for bill_key, sale_ids in bills_to_sales.items():
-        bill_rows_affected = 0
-        for sale_uid in sale_ids:
-            cursor.execute(
-                "EXEC dbo.Api_Mark_Sale_Delivered @Sale_UID = ?",
-                sale_uid,
-            )
-            bill_rows_affected += cursor.rowcount
-        total_rows_affected += bill_rows_affected
-        bill_summaries.append({"bill_id": bill_key, "rows_affected": bill_rows_affected})
+    cursor.executemany(
+        "INSERT INTO dbo.Api_Bill_Delivery_Updates (Bill_UID) VALUES (?);",
+        [(bill_uid,) for bill_uid in normalized_bill_ids],
+    )
 
+    cursor.execute("EXEC dbo.Api_Mark_Bills_Delivered_Bulk")
     conn.commit()
+
+    rows_affected = max(cursor.rowcount, 0)
 
     cursor.close()
     conn.close()
 
     return {
         "status": "OK",
-        "rows_affected": total_rows_affected,
-        "bill_summaries": bill_summaries,
+        "rows_affected": rows_affected,
+        "bill_summaries": [
+            {"bill_id": bill_uid, "rows_affected": rows_affected}
+            for bill_uid in normalized_bill_ids
+        ],
     }
 
 
