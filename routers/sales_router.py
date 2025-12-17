@@ -22,7 +22,7 @@ class SalesDeliveryRequest(BaseModel):
         None,
         description="Acknowledgement identifier from upstream system",
     )
-
+    
 
 class SalesFailureRequest(BaseModel):
     reason: str | None = Field(

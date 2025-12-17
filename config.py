@@ -72,6 +72,7 @@ API_TOKEN_EXPIRE_MINUTES: Final[int] = int(os.getenv("API_TOKEN_EXPIRE_MINUTES",
 # Explicit IPs only
 ALLOWED_IPS: Final[set] = {
     _parse_ip("34.165.250.146"),
+    _parse_ip("46.99.210.54"),
     _parse_ip("34.165.194.156"),
     _parse_ip("31.154.21.146"),
     _parse_ip("62.90.169.6"),
