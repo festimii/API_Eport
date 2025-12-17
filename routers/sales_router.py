@@ -53,6 +53,10 @@ async def get_sales(
     ),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
+    group_by_bill: bool = Query(
+        default=False,
+        description="Group sale lines by bill identifier for aggregated delivery.",
+    ),
 ):
     """
     Retrieve sales outbox entries with optional status and timestamp filters.
@@ -60,7 +64,9 @@ async def get_sales(
     """
 
     try:
-        return await run_in_threadpool(list_sales, status, since, limit, offset)
+        return await run_in_threadpool(
+            list_sales, status, since, limit, offset, group_by_bill
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

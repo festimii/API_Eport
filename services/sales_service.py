@@ -182,6 +182,7 @@ def list_sales(
     since: str | None = None,
     limit: int = 100,
     offset: int = 0,
+    group_by_bill: bool = False,
 ) -> dict[str, Any]:
     """
     Return a paginated view of the sales outbox with optional filtering.
@@ -196,9 +197,12 @@ def list_sales(
     status_field = None
     timestamp_field = None
 
+    bill_id_field = None
+
     if rows:
         status_field = _detect_field(rows[0], STATUS_FIELD_CANDIDATES)
         timestamp_field = _detect_field(rows[0], TIMESTAMP_FIELD_CANDIDATES)
+        bill_id_field = _detect_field(rows[0], BILL_ID_FIELD_CANDIDATES)
 
     # Filter in Python to avoid coupling to optional database columns
     if status and status_field:
@@ -224,13 +228,39 @@ def list_sales(
                 filtered_rows.append(row)
         rows = filtered_rows
 
-    total_count = len(rows)
-    paginated_rows = rows[offset : offset + limit]
+    if group_by_bill:
+        if not bill_id_field:
+            raise ValueError("Bill identifier field not found in sales outbox")
 
-    safe_rows = [
-        {key: _json_safe(value) for key, value in row.items()}
-        for row in paginated_rows
-    ]
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            bill_key = str(row.get(bill_id_field) or "")
+            grouped.setdefault(bill_key, []).append(row)
+
+        group_items = []
+        for bill_key, group_rows in sorted(grouped.items()):
+            safe_group_rows = [
+                {key: _json_safe(value) for key, value in row.items()}
+                for row in group_rows
+            ]
+            group_items.append(
+                {
+                    "bill_id": bill_key,
+                    "count": len(group_rows),
+                    "sales": safe_group_rows,
+                }
+            )
+
+        total_count = len(group_items)
+        paginated_rows = group_items[offset : offset + limit]
+    else:
+        total_count = len(rows)
+        paginated_rows = rows[offset : offset + limit]
+
+        paginated_rows = [
+            {key: _json_safe(value) for key, value in row.items()}
+            for row in paginated_rows
+        ]
 
     status_counts: dict[str, int] | None = None
     if status_field:
@@ -244,13 +274,15 @@ def list_sales(
         "metadata": {
             "limit": limit,
             "offset": offset,
-            "returned": len(safe_rows),
+            "returned": len(paginated_rows),
             "total": total_count,
+            "grouped_by_bill": group_by_bill,
+            "bill_id_field": bill_id_field,
             "status_field": status_field,
             "timestamp_field": timestamp_field,
             "status_counts": status_counts,
         },
-        "data": safe_rows,
+        "data": paginated_rows,
     }
 
 
