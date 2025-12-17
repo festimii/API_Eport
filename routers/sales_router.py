@@ -6,6 +6,7 @@ from services.sales_service import (
     push_sales,
     mark_sale_delivered,
     mark_bill_delivered,
+    mark_bills_delivered,
     mark_sale_failed,
     list_sales,
     list_sales_grouped_by_bill,
@@ -23,6 +24,14 @@ class SalesDeliveryRequest(BaseModel):
     ack_id: str | None = Field(
         None,
         description="Acknowledgement identifier from upstream system",
+    )
+    bill_ids: list[str] | None = Field(
+        default=None,
+        description=(
+            "Optional collection of bill identifiers to mark as delivered. If provided,"
+            " any sale matching the supplied bill identifiers will be marked"
+            " delivered."
+        ),
     )
 
 
@@ -99,8 +108,12 @@ async def get_sales_grouped(
 @router.post("/{sale_uid}/delivered")
 def mark_delivered(sale_uid: str, payload: SalesDeliveryRequest):
     """
-    Mark a sale as delivered.
+    Mark a sale, or all sales matching provided bill identifiers, as delivered.
     """
+
+    if payload.bill_ids:
+        return mark_bills_delivered(payload.bill_ids, payload.ack_id)
+
     return mark_sale_delivered(sale_uid, payload.ack_id)
 
 
