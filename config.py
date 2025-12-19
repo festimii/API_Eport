@@ -54,10 +54,10 @@ DB_NAME: Final[str] = _require_env("DB_NAME")
 DB_USER: Final[str] = _require_env("DB_USER")
 DB_PASSWORD: Final[str] = _require_env("DB_PASSWORD")
 
-DB_SERVER2: Final[str] = _require_env("DB_SERVER")
-DB_NAME2: Final[str] = _require_env("DB_NAME")
-DB_USER2: Final[str] = _require_env("DB_USER")
-DB_PASSWORD2: Final[str] = _require_env("DB_PASSWORD")
+DB_SERVER2: Final[str] = _require_env("DB_SERVER2")
+DB_NAME2: Final[str] = _require_env("DB_NAME2")
+DB_USER2: Final[str] = _require_env("DB_USER2")
+DB_PASSWORD2: Final[str] = _require_env("DB_PASSWORD2")
 
 
 # =========================
@@ -101,6 +101,16 @@ CONNECTION_STRING: Final[str] = (
     f"DATABASE={DB_NAME};"
     f"UID={DB_USER};"
     f"PWD={DB_PASSWORD};"
+    f"Encrypt=no;"
+    f"TrustServerCertificate=yes;"
+)
+
+CONNECTION_STRING2: Final[str] = (
+    f"DRIVER={{SQL Server}};"
+    f"SERVER={DB_SERVER2};"
+    f"DATABASE={DB_NAME2};"
+    f"UID={DB_USER2};"
+    f"PWD={DB_PASSWORD2};"
     f"Encrypt=no;"
     f"TrustServerCertificate=yes;"
 )
