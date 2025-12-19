@@ -54,6 +54,11 @@ DB_NAME: Final[str] = _require_env("DB_NAME")
 DB_USER: Final[str] = _require_env("DB_USER")
 DB_PASSWORD: Final[str] = _require_env("DB_PASSWORD")
 
+DB_SERVER2: Final[str] = _require_env("DB_SERVER")
+DB_NAME2: Final[str] = _require_env("DB_NAME")
+DB_USER2: Final[str] = _require_env("DB_USER")
+DB_PASSWORD2: Final[str] = _require_env("DB_PASSWORD")
+
 
 # =========================
 # API Security
