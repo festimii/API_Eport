@@ -30,9 +30,9 @@ if sys.platform.startswith("win"):
 app = FastAPI(
     title="AlgoRetail Push Data API",
     version="1.0.8",
-    docs_url=None,
-    redoc_url=None,
-    openapi_url=None,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
 # -------------------------
