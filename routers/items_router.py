@@ -20,12 +20,13 @@ router = APIRouter(
 # ----------------------------------------------------------
 # THREADSAFE SYNC OPERATION
 # ----------------------------------------------------------
+
+"""
 @router.post("/sync")
 async def sync():
-    """Run stored procedure asynchronously in a thread."""
     await run_in_threadpool(sync_items)
     return {"status": "OK", "message": "ItemMaster synchronized"}
-
+"""
 
 # ----------------------------------------------------------
 # STREAMING ENDPOINT WITH MULTITHREAD SUPPORT + DELTA-SYNC

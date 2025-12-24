@@ -4,6 +4,7 @@ from services.transfers_service import fetch_income_lines, fetch_return_lines
 from .auth_router import require_token
 
 router = APIRouter(
+
     tags=["Transfers"],
     dependencies=[Depends(require_token)],
 )

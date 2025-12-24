@@ -32,14 +32,11 @@ class SalesFailureRequest(BaseModel):
         description="Failure reason or diagnostic notes",
     )
 
-
+"""
 @router.post("/push")
 def push_sales_outbox():
-    """
-    Populate today's sales outbox using the Api_Push_Sales procedure.
-    """
     return push_sales()
-
+"""
 
 @router.get("/")
 async def get_sales(
@@ -70,7 +67,7 @@ async def get_sales(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-
+"""
 @router.get("/grouped")
 async def get_sales_grouped(
     status: str | None = Query(
@@ -84,9 +81,7 @@ async def get_sales_grouped(
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
 ):
-    """
-    Retrieve sales outbox entries grouped by bill identifier.
-    """
+
 
     try:
         return await run_in_threadpool(
@@ -95,7 +90,7 @@ async def get_sales_grouped(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-
+"""
 @router.post("/bills/delivered")
 def mark_bills_as_delivered(payload: BillsDeliveryRequest):
     """

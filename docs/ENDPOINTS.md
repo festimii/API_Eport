@@ -2,21 +2,6 @@
 
 This document summarizes all available endpoints in the AlgoRetail Push Data API and how to call them. All endpoints are rooted at `/` and the OpenAPI/Swagger UI is disabled, so refer to this guide for usage details.
 
-## Access and Authentication
-- **IP allowlist**: Requests from IPs in `ALLOWED_IPS` or `ALLOWED_IP_NETWORKS` bypass token verification, otherwise a bearer token is required.
-- **Bearer tokens**: Obtain a JWT via `POST /auth/token` and include it in requests using the `Authorization: Bearer <token>` header. Tokens are required for every endpoint except the root health check.
-
-### Obtain a token
-- **Endpoint**: `POST /auth/token`
-- **Body** (`application/json`):
-  ```json
-  {
-    "username": "<API_USERNAME>",
-    "password": "<API_PASSWORD>"
-  }
-  ```
-- **Response**: `{ "access_token": "...", "token_type": "bearer", "expires_in": <seconds> }`
-
 ## Health
 - **Endpoint**: `GET /`
 - **Description**: Returns service status, version, and current UTC timestamp. No authentication required.
